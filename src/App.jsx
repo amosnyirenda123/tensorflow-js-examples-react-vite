@@ -1,44 +1,65 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import * as tf from "@tensorflow/tfjs";
+import { INCEPTION_CLASSES } from "./inception_classes";
+
+function preprocessImage(img) {
+  return tf.tidy(() => {
+    let tensor = tf.browser
+      .fromPixels(img)
+      .resizeBilinear([299, 299], true)
+      .div(255)
+      .reshape([1, 299, 299, 3]);
+    return tensor;
+  });
+}
 
 export default function App() {
   const [model, setModel] = useState(null);
+  const imgRef = useRef(null);
 
   useEffect(() => {
     const loadModel = async () => {
-      const loadedModel = await tf.loadLayersModel("/ttt-model/ttt_model.json");
+      const modelPath = "/inceptionV3/model.json";
+      const loadedModel = await tf.loadGraphModel(modelPath);
       setModel(loadedModel);
 
-      console.log("Tic-Tac-Toe model loaded!");
+      console.log("Model Loaded successfully.");
     };
 
     loadModel();
   }, []);
 
-  const predictNextMove = () => {
-    if (!model) return "Model not loaded yet";
-    const emptyBoard = tf.zeros([9]);
+  const handlePredict = () => {
+    if (!model) return;
+    const inputTensor = preprocessImage(imgRef.current);
+    const predictions = model.predict(inputTensor);
+    predictions.data().then((arr) => {
+      const { indices } = tf.topk(arr, 3);
 
-    const betterBlockMe = tf.tensor([-1, 0, 0, 1, 1, -1, 0, 0, -1]);
-    const goForTheKill = tf.tensor([1, 0, 1, 0, -1, -1, -1, 0, 1]);
+      const prediction_indices = indices.dataSync();
 
-    const matches = tf.stack([emptyBoard, betterBlockMe, goForTheKill]);
+      console.log(`
+        First Prediction ${INCEPTION_CLASSES[prediction_indices[0]]},
+        Second Prediction ${INCEPTION_CLASSES[prediction_indices[1]]},
+        Third Third Prediction ${INCEPTION_CLASSES[prediction_indices[2]]}
+        `);
 
-    const result = model.predict(matches);
-
-    result.reshape([3, 3, 3]).print();
+      inputTensor.dispose();
+      model.dispose();
+    });
   };
 
   return (
     <div>
-      <h1>Tic-Tac-Toe Predictor</h1>
-      <button
-        onClick={() => {
-          predictNextMove();
-        }}
-      >
-        Predict Winner
-      </button>
+      <h1>InceptionV3 Classification</h1>
+      <img
+        ref={imgRef}
+        src='/images/cat.jpg'
+        alt='Test'
+        crossOrigin='anonymous'
+        style={{ width: 299, height: 299 }}
+      />
+      <button onClick={handlePredict}>Classify</button>
     </div>
   );
 }
