@@ -1,0 +1,12 @@
+.container {
+  position: relative;
+}
+
+.space {
+  position: absolute;
+  left: 0;
+}
+
+img {
+  width: 100%;
+}

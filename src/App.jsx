@@ -1,14 +1,15 @@
 import { useEffect, useState, useRef } from "react";
 import * as tf from "@tensorflow/tfjs";
-import { INCEPTION_CLASSES } from "./inception_classes";
+
+import "./App.css";
 
 function preprocessImage(img) {
   return tf.tidy(() => {
     let tensor = tf.browser
       .fromPixels(img)
-      .resizeBilinear([299, 299], true)
+      .resizeNearestNeighbor([256, 256], true)
       .div(255)
-      .reshape([1, 299, 299, 3]);
+      .reshape([1, 256, 256, 3]);
     return tensor;
   });
 }
@@ -16,10 +17,11 @@ function preprocessImage(img) {
 export default function App() {
   const [model, setModel] = useState(null);
   const imgRef = useRef(null);
+  const canvasRef = useRef(null);
 
   useEffect(() => {
     const loadModel = async () => {
-      const modelPath = "/inceptionV3/model.json";
+      const modelPath = "/localization/tfjs_quant_uint8/model.json";
       const loadedModel = await tf.loadGraphModel(modelPath);
       setModel(loadedModel);
 
@@ -29,28 +31,34 @@ export default function App() {
     loadModel();
   }, []);
 
-  const handlePredict = () => {
+  const drawBoundingBox = () => {
     if (!model) return;
     const inputTensor = preprocessImage(imgRef.current);
     const predictions = model.predict(inputTensor);
-    predictions.data().then((arr) => {
-      const { indices } = tf.topk(arr, 3);
+    predictions.data().then((box) => {
+      const canvas = canvasRef.current;
+      const imgWidth = imgRef.current.width;
+      const imgHeight = imgRef.current.height;
+      canvas.width = imgWidth;
+      canvas.height = imgHeight;
 
-      const prediction_indices = indices.dataSync();
+      const ctx = canvas.getContext("2d");
 
-      console.log(`
-        First Prediction ${INCEPTION_CLASSES[prediction_indices[0]]},
-        Second Prediction ${INCEPTION_CLASSES[prediction_indices[1]]},
-        Third Third Prediction ${INCEPTION_CLASSES[prediction_indices[2]]}
-        `);
+      const startX = box[0] * imgWidth;
+      const startY = box[1] * imgHeight;
 
-      inputTensor.dispose();
-      model.dispose();
+      const width = (box[2] - box[0]) * imgWidth;
+      const height = (box[3] - box[1]) * imgHeight;
+
+      ctx.strokeStyle = "#0F0";
+      ctx.lineWidth = 4;
+
+      ctx.strokeRect(startX, startY, width, height);
     });
   };
 
   return (
-    <div>
+    <div className='container'>
       <h1>InceptionV3 Classification</h1>
       <img
         ref={imgRef}
@@ -59,7 +67,9 @@ export default function App() {
         crossOrigin='anonymous'
         style={{ width: 299, height: 299 }}
       />
-      <button onClick={handlePredict}>Classify</button>
+      <button onClick={drawBoundingBox}>Bounding Box</button>
+
+      <canvas className='space' ref={canvasRef}></canvas>
     </div>
   );
 }
