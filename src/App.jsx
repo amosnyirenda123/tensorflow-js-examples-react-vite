@@ -15,7 +15,7 @@ export default function App() {
     loadModel();
   }, []);
 
-  const predictWinner = () => {
+  const predictNextMove = () => {
     if (!model) return "Model not loaded yet";
     const emptyBoard = tf.zeros([9]);
 
@@ -34,7 +34,7 @@ export default function App() {
       <h1>Tic-Tac-Toe Predictor</h1>
       <button
         onClick={() => {
-          predictWinner();
+          predictNextMove();
         }}
       >
         Predict Winner
