@@ -5,12 +5,8 @@ import "./App.css";
 
 function preprocessImage(img) {
   return tf.tidy(() => {
-    let tensor = tf.browser
-      .fromPixels(img)
-      .resizeNearestNeighbor([256, 256], true)
-      .div(255)
-      .reshape([1, 256, 256, 3]);
-    return tensor;
+    let singleBatch = tf.browser.fromPixels(img).expandDims(0);
+    return singleBatch;
   });
 }
 
@@ -21,8 +17,8 @@ export default function App() {
 
   useEffect(() => {
     const loadModel = async () => {
-      const modelPath = "/localization/tfjs_quant_uint8/model.json";
-      const loadedModel = await tf.loadLayersModel(modelPath);
+      const modelPath = "/ssd_mobilenet_v2/model.json";
+      const loadedModel = await tf.loadGraphModel(modelPath);
       setModel(loadedModel);
 
       console.log("Model Loaded successfully.");
@@ -31,35 +27,42 @@ export default function App() {
     loadModel();
   }, []);
 
-  const drawBoundingBox = () => {
+  const drawBoundingBoxes = async () => {
     if (!model) return;
+
     const inputTensor = preprocessImage(imgRef.current);
-    const predictions = model.predict(inputTensor);
-    predictions.data().then((box) => {
-      const canvas = canvasRef.current;
-      const imgWidth = imgRef.current.width;
-      const imgHeight = imgRef.current.height;
-      canvas.width = imgWidth;
-      canvas.height = imgHeight;
+    const result = await model.executeAsync(inputTensor);
 
-      const ctx = canvas.getContext("2d");
+    const scores = await result[0].data();
+    const boxes = await result[1].squeeze().array();
 
-      const startX = box[0] * imgWidth;
-      const startY = box[1] * imgHeight;
+    const canvas = canvasRef.current;
+    const imgWidth = imgRef.current.width;
+    const imgHeight = imgRef.current.height;
+    canvas.width = imgWidth;
+    canvas.height = imgHeight;
 
-      const width = (box[2] - box[0]) * imgWidth;
-      const height = (box[3] - box[1]) * imgHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, imgWidth, imgHeight);
 
-      ctx.strokeStyle = "#0F0";
-      ctx.lineWidth = 4;
-
-      ctx.strokeRect(startX, startY, width, height);
+    boxes.forEach((box, i) => {
+      if (scores[i] > 0.5) {
+        ctx.strokeStyle = "#0F0";
+        ctx.lineWidth = 2;
+        const startY = box[0] * imgHeight;
+        const startX = box[1] * imgWidth;
+        const height = (box[2] - box[0]) * imgHeight;
+        const width = (box[3] - box[1]) * imgWidth;
+        ctx.strokeRect(startX, startY, width, height);
+      }
     });
+
+    tf.dispose([inputTensor, ...result]);
   };
 
   return (
     <div className='container'>
-      <h1>InceptionV3 Classification</h1>
+      <h1>SSD MOBILENET</h1>
       <img
         ref={imgRef}
         src='/images/cat.jpg'
@@ -67,7 +70,7 @@ export default function App() {
         crossOrigin='anonymous'
         style={{ width: 299, height: 299 }}
       />
-      <button onClick={drawBoundingBox}>Bounding Box</button>
+      <button onClick={() => drawBoundingBoxes()}>Draw Bounding</button>
 
       <canvas className='space' ref={canvasRef}></canvas>
     </div>
