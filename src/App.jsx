@@ -22,7 +22,7 @@ export default function App() {
   useEffect(() => {
     const loadModel = async () => {
       const modelPath = "/localization/tfjs_quant_uint8/model.json";
-      const loadedModel = await tf.loadGraphModel(modelPath);
+      const loadedModel = await tf.loadLayersModel(modelPath);
       setModel(loadedModel);
 
       console.log("Model Loaded successfully.");
